@@ -1,5 +1,5 @@
-using System;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Azure.Data.Tables;
 using Azure.Storage.Blobs;
 using Microsoft.Azure.Functions.Worker;
@@ -24,6 +24,8 @@ namespace Atea.Scraper
            client.BaseAddress = new Uri("https://restcountries.com");
            var response = await client.GetAsync("/v3.1/lang/spanish");
            var result = await response.Content.ReadFromJsonAsync<ICollection<Country>>();
+           var payload = JsonSerializer.Serialize(result);
+
            var tableServiceClient = new TableServiceClient("UseDevelopmentStorage=true");
            await tableServiceClient.CreateTableIfNotExistsAsync("atea");
            var tableClient = tableServiceClient.GetTableClient("atea");
@@ -35,11 +37,12 @@ namespace Atea.Scraper
            });
 
            var blobServiceClient = new BlobServiceClient("UseDevelopmentStorage=true");
-           var blobContainerClient = await blobServiceClient.CreateBlobContainerAsync("atea");
-           await blobContainerClient.Value.CreateIfNotExistsAsync();
-           await blobContainerClient.Value.UploadBlobAsync($"{key.ToString()}.json", BinaryData.FromObjectAsJson(result));
+           var blobContainerClient = blobServiceClient.GetBlobContainerClient("atea");
+           await blobContainerClient.CreateIfNotExistsAsync();
 
-           _logger.LogInformation("action performed");
+           await blobContainerClient.UploadBlobAsync($"{key}.json", BinaryData.FromString(payload));
+
+            _logger.LogInformation("action performed");
         }
     }
 }
